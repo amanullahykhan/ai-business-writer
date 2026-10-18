@@ -1,0 +1,152 @@
+{
+  "name": "AI Business Writer (Webhook + Qwen)",
+  "nodes": [
+    {
+      "id": "webhook-1",
+      "name": "Business Writer Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [-460, -16],
+      "webhookId": "business-writer-tool",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "business-writer",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      }
+    },
+    {
+      "id": "if-1",
+      "name": "Check Secret",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [-280, -16],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "cond1",
+              "leftValue": "={{ $json.headers['x-api-key'] }}",
+              "rightValue": "CHANGE_THIS_TO_YOUR_OWN_SECRET_KEY",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "unauthorized-1",
+      "name": "Unauthorized",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [-280, 180],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ error: \"Unauthorized\" }) }}",
+        "options": {
+          "responseCode": 401,
+          "responseHeaders": {
+            "entries": [
+              { "name": "Access-Control-Allow-Origin", "value": "*" }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "4df82d99-db9b-4acc-9fce-a7047c6f3f75",
+      "name": "Build Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-80, -16],
+      "parameters": {
+        "jsCode": "const body = $json.body || {};\nconst docType = body.documentType;\nconst details = body.details;\nconst tone = body.tone || \"Confident\";\nconst yourName = (body.yourName || \"\").trim();\nconst yourRole = (body.yourRole || \"\").trim();\n\nlet who = \"a professional\";\nif (yourName && yourRole) who = `${yourName}, ${yourRole}`;\nelse if (yourName) who = yourName;\nelse if (yourRole) who = `a ${yourRole}`;\n\n// Style library — this is how you \"teach\" the model better writing habits.\n// Edit any instructions/example below, or add a new document type as its own entry.\nconst library = {\n  \"Resume Bullet Points\": {\n    instructions: \"You write resume bullet points. Each bullet starts with a strong action verb, includes a number or result where possible, and stays under 20 words. No buzzwords like 'synergy' or 'results-driven'. Write the way a confident professional would describe their own work to a colleague.\",\n    example: \"Example style:\\n- Rebuilt the company website, cutting page load time from 6s to 1.8s\\n- Managed a product launch that brought in 200+ new customers in the first month\"\n  },\n  \"Resume Summary\": {\n    instructions: \"You write a 3-4 line resume summary for the top of a resume. State years of experience, main skills, and one standout result. No clichés like 'hardworking team player' or 'passionate about excellence'.\",\n    example: \"Example:\\n\\\"Marketing coordinator with 6 years running social campaigns for retail brands. Known for turning small budgets into real results, including a campaign that grew one client's followers by 300% in four months.\\\"\"\n  },\n  \"Cover Letter\": {\n    instructions: \"You write cover letters that sound like a real person wrote them, not a template. Open with something specific about the role or company, not 'I am writing to apply for'. Keep it to 3 short paragraphs. End with a plain, confident closing line, not 'I look forward to hearing from you'.\",\n    example: \"Example opening:\\n\\\"Your job post mentions you need someone who can turn around slow customer response times. That's exactly the problem I solved in my last role, so I wanted to reach out directly.\\\"\"\n  },\n  \"Professional Email\": {\n    instructions: \"You write short, clear business emails. One idea per paragraph. No filler phrases like 'I hope this email finds you well' or 'Just circling back'. Get to the point in the first line.\",\n    example: \"Example:\\n\\\"Hi Sarah, following up on the invoice from last week. Can you confirm if payment has been sent? Thanks.\\\"\"\n  },\n  \"Follow-Up Email\": {\n    instructions: \"You write short follow-up emails after getting no response. Polite but direct, no guilt-tripping, one clear ask, easy to say yes to.\",\n    example: \"Example:\\n\\\"Hi John, checking in on the proposal I sent last Tuesday. Happy to answer any questions — is there a good day this week to talk?\\\"\"\n  },\n  \"Meeting Agenda\": {\n    instructions: \"You write meeting agendas. State the meeting goal in one line at the top, then list 3-6 topics with a time estimate for each. Note who should prepare what, if relevant.\",\n    example: \"Example:\\nGoal: Decide on Q2 marketing budget\\n1. Review Q1 results (10 min)\\n2. Budget options (15 min)\\n3. Decision and next steps (10 min)\"\n  },\n  \"Meeting Minutes\": {\n    instructions: \"You write meeting notes after a meeting. List attendees, key decisions, and action items with owner names and due dates. No long narrative, just facts.\",\n    example: \"Example:\\nDecisions: Approved the new logo design.\\nAction items:\\n- Sarah to send final files by Friday\\n- Amir to update the website by Monday\"\n  },\n  \"Memo\": {\n    instructions: \"You write internal memos. Use a short heading, a one-line summary at the top, then 2-4 short sections with clear headers. Plain, direct language, no corporate jargon.\",\n    example: \"Example header:\\nTo: Team\\nFrom: Operations\\nDate: [date]\\nRe: Office closing schedule\"\n  },\n  \"Business Proposal\": {\n    instructions: \"You write short business proposals for a client or partner. Structure: the problem, the proposed solution, what's included, cost, timeline. Be specific about deliverables, not vague marketing language.\",\n    example: \"Example line:\\n\\\"Problem: your checkout page takes 7 steps and loses customers. Solution: reduce it to 3 steps. Timeline: 2 weeks. Cost: $900.\\\"\"\n  },\n  \"RFQ Response\": {\n    instructions: \"You write RFQ (request for quotation) responses. Be specific about price, timeline, and what is included. No vague promises like 'best quality service'. Structure: short intro, pricing in plain text, timeline, next steps.\",\n    example: \"Example line:\\n\\\"Total cost: $450. Delivery: 7 business days. Includes 2 rounds of revisions.\\\"\"\n  },\n  \"Freelance Proposal\": {\n    instructions: \"You write Freelancer.com / Upwork style proposals. Open by referencing something specific from the job post, not 'I am a skilled developer'. Mention one relevant past project in one sentence. Keep it under 120 words. End with a direct question to start a conversation.\",\n    example: \"Example opening:\\n\\\"You mentioned your current site takes over 5 seconds to load on mobile — that's almost always a plugin or image problem, both fixable in a day or two.\\\"\"\n  },\n  \"LinkedIn About Section\": {\n    instructions: \"You write LinkedIn 'About' sections. First-person, conversational but professional, 3-4 short paragraphs. Start with what the person does and who they help, end with how to reach them. No 'passionate about' or 'thought leader'.\",\n    example: \"Example opening:\\n\\\"I help small businesses fix slow, confusing websites so more visitors actually become customers.\\\"\"\n  },\n  \"Performance Review Feedback\": {\n    instructions: \"You write performance review comments for an employee. Use specific examples, not vague praise. Balance one strength with one clear area to improve, written to encourage rather than discourage.\",\n    example: \"Example:\\n\\\"Handled the client migration project well, finishing two days early with no downtime. For next quarter, focus on documenting steps so the rest of the team can follow along without asking directly.\\\"\"\n  },\n  \"Thank You Note\": {\n    instructions: \"You write short thank-you notes for clients, colleagues, or after an interview. Be specific about what you're thanking them for, warm but not overly emotional, 3-5 sentences.\",\n    example: \"Example:\\n\\\"Thank you for taking the time to walk me through the role yesterday. I especially liked hearing about the new product launch, and I'm even more interested in joining the team now.\\\"\"\n  },\n  \"Invoice Payment Reminder\": {\n    instructions: \"You write payment reminder emails for unpaid invoices. Stay professional, state the invoice number and amount clearly, give a specific next step, and avoid sounding angry even on a second reminder.\",\n    example: \"Example:\\n\\\"Hi Maria, Invoice #204 for $600 was due on the 10th and I haven't received payment yet. Could you confirm when I can expect it?\\\"\"\n  },\n  \"Project Status Update\": {\n    instructions: \"You write short project status updates for clients or managers. Structure: what's done, what's in progress, what's blocked (if anything), what's next. Use short lines, not long paragraphs.\",\n    example: \"Example:\\nDone: Homepage redesign\\nIn progress: Mobile menu fixes (50%)\\nBlocked: Waiting on logo files from client\\nNext: Checkout page testing\"\n  }\n};\n\nconst chosen = library[docType] || library[\"Professional Email\"];\n\nconst systemPrompt = `You are a professional business writer helping ${who} write clear, natural, human English for an international audience. Never use these words or phrases: delve, leverage, in today's fast-paced world, robust solution, cutting-edge, seamless, I hope this email finds you well, I look forward to hearing from you, as an AI. Vary sentence length. Sound confident, not robotic.\\n\\n${chosen.instructions}\\n\\n${chosen.example}\\n\\nTone requested: ${tone}`;\n\nconst userPrompt = `Write a ${docType} based on these details:\\n\\n${details}`;\n\n// Replace with your own Ollama model name after importing (check with: ollama list)\nreturn [{\n  json: {\n    model: \"qwen2.5:3b\",\n    system: systemPrompt,\n    prompt: userPrompt\n  }\n}];"
+      }
+    },
+    {
+      "id": "0ddadffe-40c2-4f27-a74d-50f8112bd517",
+      "name": "Ask Model",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [120, -16],
+      "parameters": {
+        "method": "POST",
+        "url": "http://YOUR_OLLAMA_ADDRESS:11434/api/generate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { \"model\": $json.model, \"system\": $json.system, \"prompt\": $json.prompt, \"stream\": false, \"options\": { \"temperature\": 0.7, \"num_ctx\": 4096 } } }}",
+        "options": {
+          "timeout": 180000
+        }
+      }
+    },
+    {
+      "id": "respond-1",
+      "name": "Send Result",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [320, -16],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ response: $json.response }) }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              { "name": "Access-Control-Allow-Origin", "value": "*" }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "3a8af10e-0bde-4bd0-b8fa-c24b02e5acad",
+      "name": "Setup Notes",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-460, 220],
+      "parameters": {
+        "content": "## After importing, fill in 4 things:\n\n1. \"Check Secret\" node → replace `CHANGE_THIS_TO_YOUR_OWN_SECRET_KEY` with a password-style string only you know (e.g. a random 20+ character string).\n2. index.html → set `API_KEY` to that exact same string.\n3. index.html → set `WEBHOOK_URL` to your Webhook node's Production URL.\n4. \"Ask Model\" → replace `YOUR_OLLAMA_ADDRESS` with your real Ollama address, and set the model name in \"Build Prompt\" to match what you're actually running.\n\nDon't commit index.html with your real WEBHOOK_URL or API_KEY to a public GitHub repo — anyone could read it. Keep this public repo as a clean template, and deploy your real working copy from a private repo or by editing the live file directly on your server.\n\nIf 'Check Secret' looks unfamiliar when opened, just set it manually: condition = header 'x-api-key' equals your secret, using the IF node's UI.",
+        "width": 440,
+        "height": 340
+      }
+    }
+  ],
+  "connections": {
+    "Business Writer Webhook": {
+      "main": [
+        [{ "node": "Check Secret", "type": "main", "index": 0 }]
+      ]
+    },
+    "Check Secret": {
+      "main": [
+        [{ "node": "Build Prompt", "type": "main", "index": 0 }],
+        [{ "node": "Unauthorized", "type": "main", "index": 0 }]
+      ]
+    },
+    "Build Prompt": {
+      "main": [
+        [{ "node": "Ask Model", "type": "main", "index": 0 }]
+      ]
+    },
+    "Ask Model": {
+      "main": [
+        [{ "node": "Send Result", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {}
+}

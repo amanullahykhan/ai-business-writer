@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI Business Writer</title>
+<style>
+  :root{
+    --bg:#f7f7f8; --card:#ffffff; --text:#1a1a1a; --muted:#6b6b6b;
+    --border:#e2e2e2; --accent:#2563eb; --accent-hover:#1d4ed8;
+    --ok:#15803d; --err:#b91c1c;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#121212; --card:#1c1c1e; --text:#f2f2f2; --muted:#a0a0a0;
+      --border:#333333; --accent:#3b82f6; --accent-hover:#60a5fa;
+      --ok:#4ade80; --err:#f87171;
+    }
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--bg); color:var(--text);
+    font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+    padding:24px 16px 60px;
+  }
+  .wrap{max-width:640px; margin:0 auto;}
+  h1{font-size:1.5rem; margin-bottom:4px;}
+  p.sub{color:var(--muted); margin-top:0; font-size:0.95rem;}
+  .card{
+    background:var(--card); border:1px solid var(--border);
+    border-radius:12px; padding:20px; margin-top:16px;
+  }
+  label{display:block; font-size:0.85rem; font-weight:600; margin:14px 0 6px;}
+  label:first-child{margin-top:0;}
+  select, textarea, input{
+    width:100%; padding:10px 12px; border-radius:8px;
+    border:1px solid var(--border); background:var(--bg); color:var(--text);
+    font-size:0.95rem; font-family:inherit;
+  }
+  textarea{min-height:110px; resize:vertical;}
+  .row2{display:flex; gap:12px;}
+  .row2 > div{flex:1;}
+  button{
+    cursor:pointer; border:none; border-radius:8px; font-size:0.95rem;
+    font-weight:600; padding:12px 18px;
+  }
+  .btn-main{
+    width:100%; margin-top:18px; background:var(--accent); color:#fff;
+  }
+  .btn-main:hover{background:var(--accent-hover);}
+  .btn-main:disabled{opacity:0.6; cursor:not-allowed;}
+  .status{margin-top:10px; font-size:0.9rem; color:var(--muted); min-height:1.2em;}
+  .status.err{color:var(--err);}
+  #resultCard{display:none;}
+  #resultText{
+    width:100%; min-height:220px; white-space:pre-wrap;
+    background:var(--bg); border:1px solid var(--border); border-radius:8px;
+    padding:14px; font-size:0.9rem; line-height:1.5;
+  }
+  .actions{display:flex; gap:10px; margin-top:12px;}
+  .btn-secondary{
+    flex:1; background:transparent; color:var(--accent);
+    border:1px solid var(--accent);
+  }
+  .btn-secondary:hover{background:var(--accent); color:#fff;}
+  .copied{color:var(--ok); font-weight:600;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>AI Business Writer</h1>
+  <p class="sub">Pick a document type, add the details, get a human-sounding draft you can copy or download.</p>
+
+  <div class="card">
+    <form id="writerForm">
+
+      <label for="documentType">Document Type</label>
+      <select id="documentType" required>
+        <option value="" disabled selected>Choose one…</option>
+        <option>Resume Bullet Points</option>
+        <option>Resume Summary</option>
+        <option>Cover Letter</option>
+        <option>Professional Email</option>
+        <option>Follow-Up Email</option>
+        <option>Meeting Agenda</option>
+        <option>Meeting Minutes</option>
+        <option>Memo</option>
+        <option>Business Proposal</option>
+        <option>RFQ Response</option>
+        <option>Freelance Proposal</option>
+        <option>LinkedIn About Section</option>
+        <option>Performance Review Feedback</option>
+        <option>Thank You Note</option>
+        <option>Invoice Payment Reminder</option>
+        <option>Project Status Update</option>
+      </select>
+
+      <div class="row2">
+        <div>
+          <label for="yourName">Your Name (optional)</label>
+          <input type="text" id="yourName" placeholder="e.g. Jane Doe">
+        </div>
+        <div>
+          <label for="yourRole">Your Role (optional)</label>
+          <input type="text" id="yourRole" placeholder="e.g. Marketing Manager">
+        </div>
+      </div>
+
+      <label for="details">Details</label>
+      <textarea id="details" required placeholder="Paste the job description, situation, client name, or whatever this document needs to cover."></textarea>
+
+      <label for="tone">Tone</label>
+      <select id="tone">
+        <option>Confident</option>
+        <option>Formal</option>
+        <option>Friendly</option>
+        <option>Persuasive</option>
+        <option>Empathetic</option>
+        <option>Direct</option>
+      </select>
+
+      <button type="submit" class="btn-main" id="submitBtn">Generate Draft</button>
+      <div class="status" id="status"></div>
+    </form>
+  </div>
+
+  <div class="card" id="resultCard">
+    <label style="margin-top:0;">Your Draft</label>
+    <textarea id="resultText" readonly></textarea>
+    <div class="actions">
+      <button class="btn-secondary" id="copyBtn" type="button">Copy to Clipboard</button>
+      <button class="btn-secondary" id="downloadBtn" type="button">Download as .txt</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  // ---- EDIT THESE TWO LINES ----
+  // Do not commit your real values here to a public GitHub repo.
+  // Paste your n8n Webhook "Production URL" (from the "Business Writer Webhook" node).
+  const WEBHOOK_URL = "PASTE_YOUR_WEBHOOK_URL_HERE";
+  // Must match the secret you set in the n8n "Check Secret" node, exactly.
+  const API_KEY = "PASTE_YOUR_API_KEY_HERE";
+  // --------------------------------
+
+  const form = document.getElementById('writerForm');
+  const statusEl = document.getElementById('status');
+  const submitBtn = document.getElementById('submitBtn');
+  const resultCard = document.getElementById('resultCard');
+  const resultText = document.getElementById('resultText');
+  const copyBtn = document.getElementById('copyBtn');
+  const downloadBtn = document.getElementById('downloadBtn');
+
+  let lastDocType = 'document';
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    if (WEBHOOK_URL.includes('PASTE_YOUR_WEBHOOK_URL_HERE')) {
+      statusEl.textContent = 'Set WEBHOOK_URL and API_KEY inside this file first (see the comment near the top of the script).';
+      statusEl.className = 'status err';
+      return;
+    }
+
+    const documentType = document.getElementById('documentType').value;
+    const yourName = document.getElementById('yourName').value;
+    const yourRole = document.getElementById('yourRole').value;
+    const details = document.getElementById('details').value;
+    const tone = document.getElementById('tone').value;
+    lastDocType = documentType || 'document';
+
+    submitBtn.disabled = true;
+    statusEl.className = 'status';
+    statusEl.textContent = 'Writing your draft… this can take up to a minute on a CPU server.';
+    resultCard.style.display = 'none';
+
+    try {
+      const res = await fetch(WEBHOOK_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': API_KEY
+        },
+        body: JSON.stringify({ documentType, yourName, yourRole, details, tone })
+      });
+
+      if (res.status === 401) {
+        throw new Error('Unauthorized — check that API_KEY in this file matches your n8n "Check Secret" node.');
+      }
+      if (!res.ok) throw new Error('Server responded with status ' + res.status);
+
+      const data = await res.json();
+      const text = data.response || data.text || JSON.stringify(data);
+
+      resultText.value = text.trim();
+      resultCard.style.display = 'block';
+      statusEl.textContent = 'Done.';
+    } catch (err) {
+      statusEl.className = 'status err';
+      statusEl.textContent = 'Something went wrong: ' + err.message;
+    } finally {
+      submitBtn.disabled = false;
+    }
+  });
+
+  copyBtn.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(resultText.value);
+    } catch (e) {
+      resultText.select();
+      document.execCommand('copy');
+    }
+    const original = copyBtn.textContent;
+    copyBtn.textContent = 'Copied!';
+    copyBtn.classList.add('copied');
+    setTimeout(() => { copyBtn.textContent = original; copyBtn.classList.remove('copied'); }, 1500);
+  });
+
+  downloadBtn.addEventListener('click', () => {
+    const blob = new Blob([resultText.value], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const filename = lastDocType.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') + '.txt';
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  });
+</script>
+</body>
+</html>
